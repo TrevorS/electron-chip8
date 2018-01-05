@@ -4,46 +4,59 @@ import * as path from 'path';
 import * as url from 'url';
 import * as fs from 'fs';
 
-import MMU from './chip8/mmu';
-import CPU from './chip8/cpu';
-
 let mainWindow: Electron.BrowserWindow;
+let backgroundWindow: Electron.BrowserWindow;
 
-const onReady = () => {
-  mainWindow = new BrowserWindow({
+function createMainWindow(): Electron.BrowserWindow {
+  let newWindow = new BrowserWindow({
     height: 600,
     width: 800,
   });
 
-  const pathname = path.join(__dirname, '../index.html');
+  const pathname = path.join(__dirname, '../templates/index.html');
   const mainURL = url.format({
     pathname,
     protocol: 'file:',
     slashes: true,
   });
 
-  mainWindow.loadURL(mainURL);
-  mainWindow.webContents.openDevTools();
+  newWindow.loadURL(mainURL);
+  newWindow.webContents.openDevTools();
 
-  mainWindow.on('close', () => {
-    app.quit();
-  });
+  newWindow.on('close', () => app.quit());
 
-  start();
+  return newWindow;
 }
 
-function start() {
-  const romFilename = path.join(__dirname, '../roms/TETRIS')
-  const rom = fs.readFileSync(romFilename);
+function createBackgroundWindow(): Electron.BrowserWindow {
+  const newWindow = new BrowserWindow({
+    show: false,
+  });
 
-  const mmu = new MMU();
-  mmu.load_rom(rom);
+  const pathname = path.join(__dirname, '../templates/background.html');
+  const backgroundURL = url.format({
+    pathname,
+    protocol: 'file:',
+    slashes: true,
+  });
 
-  const cpu = new CPU(mmu);
+  newWindow.loadURL(backgroundURL);
 
-  while (true) {
-    cpu.step();
-  }
+  return newWindow;
+}
+
+function onReady() {
+  mainWindow = createMainWindow();
+  backgroundWindow = createBackgroundWindow();
+
+  backgroundWindow.webContents.on('did-finish-load', () => {
+    console.log('got did-finish-load');
+
+    const romFilename = path.join(__dirname, '../roms/TETRIS')
+    const rom = fs.readFileSync(romFilename);
+
+    backgroundWindow.webContents.send('emulator-start', { rom });
+  });
 }
 
 app.on('ready', onReady);
